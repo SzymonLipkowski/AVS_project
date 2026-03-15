@@ -24,10 +24,10 @@ std_img_good=np.std(IG_good_img_train,axis=0)
 
 def detection(img):
     diff=np.abs(img-median_img_good)
-    mask=diff>(0.8*std_img_good)
+    mask=diff>(2.5*std_img_good)
     defect_pixels=np.sum(mask)
     defect_ratio = defect_pixels / (img.shape[0]*img.shape[1])
-    if defect_ratio>0.0001:
+    if defect_ratio>0.08:
         return 0
     else:
         return 1

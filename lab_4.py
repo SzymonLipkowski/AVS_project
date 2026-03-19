@@ -1,62 +1,124 @@
+"""
+lab_4.py
+========
+Mini Project 1 – Toothbrush Bristle Defect Detection
+-----------------------------------------------------
+Step 1 : Build the reference model from good training images.
+Step 2 : Evaluate defect-detection on the test split using IoU (segmentation)
+         and binary classification metrics (confusion matrix / report).
+"""
+
 import cv2
 import numpy as np
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
+from sklearn.metrics import confusion_matrix, classification_report
+from model import build_reference_model, load_reference_model, predict
+import os
 
-good_img=[]
-bad_img=[]
-mask_img=[]
-good_img=[cv2.imread("toothbrush\\train\\good\\%03d.png" % (i)) for i in range(60)]
-bad_img=[cv2.imread("toothbrush\\train\\defective\\%03d.png" % (i)) for i in range(30)]
-# GT_bad_img=[cv2.imread("toothbrush\ground_truth\defective\\%03d.png" % (i)) for i in range(30)]
-# GT_bad_img_test=GT_bad_img[20:]
-IG_org_good,IG_org_bad=good_img[45:],bad_img[20:]
-IG_good_img=[cv2.cvtColor(good_img[i],cv2.COLOR_BGR2GRAY) for i in range(60)]
-IG_bad_img=[cv2.cvtColor(bad_img[i],cv2.COLOR_BGR2GRAY) for i in range(30)]
+# ── Paths ──────────────────────────────────────────────────────────────────
+GOOD_TRAIN_FOLDER  = r"toothbrush\train\good"
+BAD_TRAIN_FOLDER   = r"toothbrush\train\defective"
+GT_FOLDER          = r"toothbrush\ground_truth\defective"
+MODEL_PATH         = "reference_model.pkl"
 
-IG_good_img = [cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype('uint8') for img in IG_good_img]
-IG_good_img = [((img > 40) * 255).astype('uint8') for img in IG_good_img]
+N_GOOD_TOTAL  = 60   # total good images available
+N_BAD_TOTAL   = 30   # total bad  images available
+N_GOOD_TRAIN  = 45   # good images used to BUILD the reference
+N_BAD_TRAIN   = 20   # bad  images kept for training  (not evaluated)
+# test splits: good[45:] (15 images), bad[20:] (10 images)
 
-IG_bad_img = [cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX).astype('uint8') for img in IG_bad_img]
-IG_bad_img = [(((img > 20)&(img<90)) * 255).astype('uint8') for img in IG_bad_img]
+# ── 1. Build (or load) reference model ────────────────────────────────────
+if os.path.exists(MODEL_PATH):
+    load_reference_model(MODEL_PATH)
+else:
+    build_reference_model(GOOD_TRAIN_FOLDER, n_images=N_GOOD_TRAIN, save_path=MODEL_PATH)
 
-IG_good_img=[cv2.medianBlur(IG_good_img[i],5) for i in range(60)]
-IG_bad_img=[cv2.medianBlur(IG_bad_img[i],5) for i in range(30)]
+# ── 2. Helpers ─────────────────────────────────────────────────────────────
+DEFECT_PIXEL_RATIO_THRESHOLD = 0.005   # fraction of image that must be anomalous
+                                        # to classify image as "defective"
 
-for i in range(20,30):
-    cv2.imshow("Bad Image",IG_bad_img[i])
-    cv2.waitKey(0)
+def classify(image):
+    """Return 0='defective', 1='good' for a single BGR image."""
+    mask = predict(image)
+    ratio = np.sum(mask > 0) / (mask.shape[0] * mask.shape[1])
+    return 0 if ratio > DEFECT_PIXEL_RATIO_THRESHOLD else 1, mask
 
-# IG_good_img_train,IG_good_img_test=IG_good_img[:45],IG_good_img[45:]
-# IG_bad_img_train,IG_bad_img_test=IG_bad_img[:20],IG_bad_img[20:]
+
+def compute_iou(pred_mask, gt_mask):
+    pred_bin = (pred_mask > 0).astype(np.uint8)
+    gt_bin   = (gt_mask  > 0).astype(np.uint8)
+    inter = np.logical_and(pred_bin, gt_bin).sum()
+    union = np.logical_or (pred_bin, gt_bin).sum()
+    return 1.0 if union == 0 else inter / union
 
 
-# median_img_good=np.median(IG_good_img_train,axis=0)
-# std_img_good=np.std(IG_good_img_train,axis=0)
+# ── 3. Classification evaluation ───────────────────────────────────────────
+y_true, y_pred = [], []
 
-# def detection(img):
-#     diff=np.abs(img-median_img_good)
-#     mask=diff>(2.5*std_img_good)
-#     defect_pixels=np.sum(mask)
-#     defect_ratio = defect_pixels / (img.shape[0]*img.shape[1])
-#     if defect_ratio>0.08:
-#         return 0, diff
-#     else:
-#         return 1, diff
-    
-# y_true=[]
-# y_pred=[]
-# for i in range(0,15):
-#     p_g=detection(IG_good_img_test[i])
-#     y_true.append(1)
-#     y_pred.append(p_g)
+# good test images (should be classified as 1 = good)
+for i in range(N_GOOD_TRAIN, N_GOOD_TOTAL):
+    path = os.path.join(GOOD_TRAIN_FOLDER, f"{i:03d}.png")
+    img  = cv2.imread(path)
+    if img is None:
+        print(f"  Missing: {path}")
+        continue
+    label, _ = classify(img)
+    y_true.append(1)
+    y_pred.append(label)
 
-# for i in range(0,10):
-#     p_b,mask=detection(IG_bad_img_test[i])
-#     y_true.append(0)
-#     y_pred.append(p_b)
-#     cv2.imshow("Mask",mask)
-#     cv2.waitKey(0)
+# bad test images (should be classified as 0 = defective)
+for i in range(N_BAD_TRAIN, N_BAD_TOTAL):
+    path = os.path.join(BAD_TRAIN_FOLDER, f"{i:03d}.png")
+    img  = cv2.imread(path)
+    if img is None:
+        print(f"  Missing: {path}")
+        continue
+    label, _ = classify(img)
+    y_true.append(0)
+    y_pred.append(label)
 
-# print(confusion_matrix(y_true, y_pred))
-# print(classification_report(y_true, y_pred))
+print("\n=== Classification Results ===")
+print(confusion_matrix(y_true, y_pred))
+print(classification_report(y_true, y_pred, target_names=["defective", "good"]))
+
+# ── 4. Segmentation evaluation (IoU) on bad test images ───────────────────
+ious = []
+for i in range(N_BAD_TRAIN, N_BAD_TOTAL):
+    img_path = os.path.join(BAD_TRAIN_FOLDER, f"{i:03d}.png")
+    gt_path  = os.path.join(GT_FOLDER,        f"{i:03d}_mask.png")
+
+    img     = cv2.imread(img_path)
+    gt_mask = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+
+    if img is None or gt_mask is None:
+        print(f"  Skipping {i:03d} – file missing")
+        continue
+
+    pred_mask = predict(img)
+    if pred_mask.shape != gt_mask.shape:
+        pred_mask = cv2.resize(pred_mask, (gt_mask.shape[1], gt_mask.shape[0]))
+
+    iou = compute_iou(pred_mask, gt_mask)
+    ious.append(iou)
+    print(f"  Image {i:03d}: IoU = {iou:.4f}")
+
+print(f"\nAverage IoU over {len(ious)} test defective images: {np.mean(ious):.4f}")
+
+# ── 5. Optional: visual inspection ────────────────────────────────────────
+SHOW_VISUALS = False   # set to True to step through images interactively
+
+if SHOW_VISUALS:
+    for i in range(N_BAD_TRAIN, N_BAD_TOTAL):
+        img_path = os.path.join(BAD_TRAIN_FOLDER, f"{i:03d}.png")
+        gt_path  = os.path.join(GT_FOLDER,        f"{i:03d}_mask.png")
+        img     = cv2.imread(img_path)
+        gt_mask = cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE)
+        if img is None or gt_mask is None:
+            continue
+        pred_mask = predict(img)
+        overlay = img.copy()
+        overlay[pred_mask > 0] = (0, 0, 255)   # red = predicted defect
+        cv2.imshow(f"Image {i:03d}", overlay)
+        cv2.imshow(f"Pred mask {i:03d}", pred_mask)
+        cv2.imshow(f"GT mask   {i:03d}", gt_mask)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()

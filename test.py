@@ -1,17 +1,3 @@
-"""
-test.py
-=======
-Quick segmentation test: runs predict() on all defective images,
-computes IoU against ground-truth masks, and shows side-by-side windows.
-
-Usage
------
-  python test.py
-
-Make sure reference_model.pkl exists (run lab_4.py first, or let
-this script build it automatically).
-"""
-
 import cv2
 import numpy as np
 import os

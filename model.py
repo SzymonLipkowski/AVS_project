@@ -48,11 +48,6 @@ def load_reference_model(path="reference_model.pkl"):
 
 
 def _filter_components(mask, min_area, max_area=None, min_aspect_ratio=None):
-    """
-    Return mask keeping only components that pass the given criteria.
-    min_aspect_ratio: if set, keep components with bbox w/h or h/w >= this value
-                      (elongated shapes like scratches/thin defects)
-    """
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
     result = np.zeros_like(mask)
     for lbl in range(1, num_labels):
@@ -74,18 +69,6 @@ def _filter_components(mask, min_area, max_area=None, min_aspect_ratio=None):
 
 
 def predict(image, threshold_sigma=3.5, min_defect_area=300):
-    """
-    Dual-threshold pipeline to handle both large and thin defects.
-
-    Track A — large/splayed defects (original approach):
-        sigma=3.5, min_area=300, then dilate
-
-    Track B — thin/scratch defects (new):
-        sigma=2.5, min_area=60, keep only elongated components (aspect >= 3.0)
-        These are thin lines that fail Track A's area threshold
-
-    Final mask = A union B
-    """
     global _reference_median, _reference_std
 
     if _reference_median is None:
@@ -118,6 +101,5 @@ def predict(image, threshold_sigma=3.5, min_defect_area=300):
     k_dilate_thin = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     mask_b = cv2.dilate(mask_b, k_dilate_thin)
 
-    # ── Combine ────────────────────────────────────────────────────────────
     result = cv2.bitwise_or(mask_a, mask_b)
     return result

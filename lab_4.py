@@ -1,13 +1,3 @@
-"""
-lab_4.py
-========
-Mini Project 1 – Toothbrush Bristle Defect Detection
------------------------------------------------------
-Step 1 : Build the reference model from good training images.
-Step 2 : Evaluate defect-detection on the test split using IoU (segmentation)
-         and binary classification metrics (confusion matrix / report).
-"""
-
 import cv2
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
@@ -33,8 +23,7 @@ else:
     build_reference_model(GOOD_TRAIN_FOLDER, n_images=N_GOOD_TRAIN, save_path=MODEL_PATH)
 
 # ── 2. Helpers ─────────────────────────────────────────────────────────────
-DEFECT_PIXEL_RATIO_THRESHOLD = 0.005   # fraction of image that must be anomalous
-                                        # to classify image as "defective"
+DEFECT_PIXEL_RATIO_THRESHOLD = 0.005
 
 def classify(image):
     """Return 0='defective', 1='good' for a single BGR image."""
@@ -103,8 +92,8 @@ for i in range(N_BAD_TRAIN, N_BAD_TOTAL):
 
 print(f"\nAverage IoU over {len(ious)} test defective images: {np.mean(ious):.4f}")
 
-# ── 5. Optional: visual inspection ────────────────────────────────────────
-SHOW_VISUALS = False   # set to True to step through images interactively
+# ── Optional: visual inspection ────────────────────────────────────────
+SHOW_VISUALS = False   
 
 if SHOW_VISUALS:
     for i in range(N_BAD_TRAIN, N_BAD_TOTAL):
@@ -116,7 +105,7 @@ if SHOW_VISUALS:
             continue
         pred_mask = predict(img)
         overlay = img.copy()
-        overlay[pred_mask > 0] = (0, 0, 255)   # red = predicted defect
+        overlay[pred_mask > 0] = (0, 0, 255)
         cv2.imshow(f"Image {i:03d}", overlay)
         cv2.imshow(f"Pred mask {i:03d}", pred_mask)
         cv2.imshow(f"GT mask   {i:03d}", gt_mask)
